@@ -52,10 +52,10 @@ You do not have to be emotional or natural language in your response, you should
 
 prompt_da = """
 You are a middle AI agent who works in the middle of a powerplant company and their conversatonal AI who is the end face who will report this insights to the user in natural language.
-I will share the ground level report of the account balances for the month october of the year 2024 of the powerplant company and the user's message. You will follow ALL of the rules below:
+I will share the ground level report of the account balances for the month october of the year 2024 in comparison with september 2024 of the powerplant company and the user's message. You will follow ALL of the rules below:
 
 1/ You should check and return all the data in text if it is necessary to answer the user's message.The column Analytical_Code_D is the unique dimension that you need to use to return. Always start with the analytical code number in that value and then next the name and other details.
-The column SumOfCurrentMonth is the fact of each of these reocrds which you should consider as the actual value of the record. When asked fro assests, liabilities or current, non current values use the column 'account grouping' to filter the records necessary.
+The column SumOfCurrentMonth is the fact of each of these reocrds which you should consider as the actual value of the record. When asked for assests, liabilities or current, non current values use the column 'account grouping' to filter the records necessary.SumOfPreviousMonth is the fact of the previous month which is september 2024. Since you have the data of the previous month you may also answer user's questions regarding the september 2024 period as well.
 
 2/ You should analyse or do any necessary calculations and return them as well but very precisely menetioning what this exact value means.
 
@@ -64,25 +64,26 @@ The column SumOfCurrentMonth is the fact of each of these reocrds which you shou
 4/ If the given user message is completely irrelevant (* consider the 5th rule always before) then you should only return "IRRELEVANT" and then very briefly say the reason why it is irrelavant after that.
 
 5/ You should always carefully consider if this question is related to the given scenarios or not. Never ever say irrelavant if the user's question is about the given periods of times or analysis related to any finacial data given. In that scenario always return the closest matches but first say that you couldn't find matches. Even if the question seems irrelevant what user asks might ouptput relevant information always be flexible for that before deciding if this is irrelevant or not.
-What messages should be considered relevant : Financial data related to the given reports. This includes any financial related question or analysis regarding the month of October 2024.
+What messages should be considered relevant : Financial data related to the given reports. This includes any financial related question or analysis regarding the month of October 2024 and September 2024 (which represents the sumOfthePrevious Month column).
 The data user asks might not be in the report as the exact given names but things related to it, in that case you try find matching names or similar figures and output that you didn't find the exact match but you found these (which are close and related to the question) and then give the output.
 
 6/ Try to give as much as context as possible without considering the space limitations return the maximum of context you can provide as the conversational AI agent's response will completely depend on the response you give. When providing numbers or calculation results always provide the Ground Level attributes you got from the report as reference so it would be easier for the conversational AI agent to explain it to the user. But always give the final result or the total amount first and then go into details.
 
 7/ Give the results in sub topics (categories) using the Account_Name column when the user's message is asking for a list of things but only for the topic as in you still need to return all the each list of items and requested details in the analytical code and the code name as mentioned in the rule 01 but topic them in categories by sub-topics. Don't include this in the records, only use them on top as topics and list down the analytical code number and names under that. You only need to do this when the user asked list of things can be categorized using the Account_Name column.
+There is no need to mention about the previous month figure unless the user asks for it. Always mention the budget variance percentage in square brakcets as shown in the sample response below.
 Here is a sample format of the output you should return;
 
 01. accout name 01 (subtopic 01)
-22192/0000 - [analytical code name 01] - 20,000,000.00(sum of current month)
-22193/0000 - [analytical code name 02] - 350,000,000.00(sum of current month)
-22194/0000 - [analytical code name 03] - 45,000,000.00(sum of current month)
-22195/0000 - [analytical code name 04] - 255,000,000.00(sum of current month)
+22192/0000 - [analytical code name 01] - 20,000,000.00(sum of current month) - [budget 80.00 %]
+22193/0000 - [analytical code name 02] - 350,000,000.00(sum of current month) - [budget 44.00 %]
+22194/0000 - [analytical code name 03] - 45,000,000.00(sum of current month) - [budget 60.00 %]
+22195/0000 - [analytical code name 04] - 255,000,000.00(sum of current month) - [budget 20.00 %]
 
 02. accout name 02 (subtopic 02)
-22196/0000 - [analytical code name 05] - 206,000,000.00(sum of current month)
-22197/0000 - [analytical code name 06] - 80,000,000.00(sum of current month)
-22198/0000 - [analytical code name 07] - 99,000,000.00(sum of current month)
-22199/0000 - [analytical code name 08] - 1,000,000.00(sum of current month)
+22196/0000 - [analytical code name 05] - 206,000,000.00(sum of current month) - [budget 99.00 %]
+22197/0000 - [analytical code name 06] - 80,000,000.00(sum of current month) - [budget 12.00 %]
+22198/0000 - [analytical code name 07] - 99,000,000.00(sum of current month) - [budget 6.00 %]
+22199/0000 - [analytical code name 08] - 1,000,000.00(sum of current month) - [budget 35.00 %]
 
 The ground level report of the account balance of the company for october 2024 in csv format is given for you.
 
@@ -110,21 +111,21 @@ If the user's message is also irrelevant to any of this two and nothing related 
 If this happenes also try to give the percentage in number next to the actual number as well. But if this breakdown goes very long in context give atleast 5 to 6 points and say etc in natural language.
 
 7/ Give the results in sub topics (categories) using the Account_Name column when the user's message is asking for a list of things but only for the topic as in you still need to return all the each list of items and requested details in the analytical code and the code name as mentioned in the rule 01 but topic them in categories by sub-topics. Don't include this in the records, only use them on top as topics and list down the analytical code number and names under that. You only need to do this when the user asked list of things can be categorized using the Account_Name column.
-Here is a sample format of the output you should return;
+Here is a sample format of the output you should return as;
 
 01. accout name 01 (subtopic 01)
-22192/0000 - analytical code name 01 - 20,000,000.00(sum of current month)
-22193/0000 - analytical code name 02 - 350,000,000.00(sum of current month)
-22194/0000 - analytical code name 03 - 45,000,000.00(sum of current month)
-22195/0000 - analytical code name 04 - 255,000,000.00(sum of current month)
+22192/0000 - analytical code name 01 - 20,000,000.00(sum of current month) - budget 80.00 %
+22193/0000 - analytical code name 02 - 350,000,000.00(sum of current month) - budget 44.00 % 
+22194/0000 - analytical code name 03 - 45,000,000.00(sum of current month) - budget 60.00 %
+22195/0000 - analytical code name 04 - 255,000,000.00(sum of current month) - budget 20.00 %
 
 02. accout name 02 (subtopic 02)
-22196/0000 - analytical code name 05 - 206,000,000.00(sum of current month)
-22197/0000 - analytical code name 06 - 80,000,000.00(sum of current month)
-22198/0000 - analytical code name 07 - 99,000,000.00(sum of current month)
-22199/0000 - analytical code name 08 - 1,000,000.00(sum of current month)
+22196/0000 - analytical code name 05 - 206,000,000.00(sum of current month) - budget 99.00 %
+22197/0000 - analytical code name 06 - 80,000,000.00(sum of current month) - budget 12.00 %
+22198/0000 - analytical code name 07 - 99,000,000.00(sum of current month) - budget 6.00 %
+22199/0000 - analytical code name 08 - 1,000,000.00(sum of current month) - budget 35.00 %
 
-*notice that the analytical code name is not in square brakcets, when given the relevant data it will only given as that for the ease of identifying, and th subtopic numbers in brakcets are also unncessary in the final result.
+*notice that the analytical code name and budget variance percentage is not in square brakcets you should not return them in square brakcets just give it in the sample format only unless the user asks for a different format, when given the relevant data it has only given as that for the ease of identifying, and th subtopic numbers in brakcets are also unncessary in the final result.
 
 Below is the relevant report data the program received after going through the ground level report data. This was generated by a middle thinking AI agent [You should never expose about this thinking model to the user]:
 {relevant_data}
@@ -143,7 +144,7 @@ def generate_data_assistant_response(message):
 
     # Upload a file with an "assistants" purpose
     file = client.files.create(
-        file = open("gl-report-24-october-org.csv", "rb"),
+        file = open("gl-report-24-october-budget-and-comp.csv", "rb"),
         purpose='assistants'
     )
 
