@@ -29,7 +29,8 @@ template_thinking_model = """
 You are a middle AI agent who works in the middle of a powerplant company and their conversatonal AI who is the end face who will report this insights to the user in natural language.
 I will share the ground level report of the account balances for the month october of the year 2024 of the powerplant company and the user's message. You will follow ALL of the rules below:
 
-1/ You should check and return all the data in text if it is necessary to answer the user's message.
+1/ You should check and return all the data in text if it is necessary to answer the user's message.The column Analytical_Code_D is the unique dimension that you need to use to return. Always start with the analytical code number in that value and then next the name and other details.
+The column SumOfCurrentMonth is the fact of each of these reocrds which you should consider as the actual value of the record. The budget is the fact that the company estimated and planned for this each record.
 
 2/ You should analyse or do any necessary calculations and return them as well but very precisely menetioning what this exact value means.
 
@@ -43,7 +44,7 @@ The data user asks might not be in the report as the exact given names but thing
 
 6/ Try to give as much as context as possible as the conversational AI agent's response will completely depend on the response you give. When providing numbers or calculation results always provide the Ground Level attributes you got from the report as reference so it would be easier for the conversational AI agent to explain it to the user. But always give the final result or the total amount first and then go into details.
 
-7/ Give the results in sub topics (categories) when the user's message is asking for a list of things but only for the topic as in you still need to return all the each list of items and requested details in ground level but topic them in categories by sub-topics. These categories might not be there in the data or the report but you can assume and create these categories based on the data you have.
+7/ Give the results in sub topics (categories) using the Account_Name column when the user's message is asking for a list of things but only for the topic as in you still need to return all the each list of items and requested details in the analytical code and the code name as mentioned in the rule 01 but topic them in categories by sub-topics. Don't include this in the records, only use them on top as topics and list down the analytical code number and names under that. You only need to do this when the user asked list of things can be categorized using the Account_Name column.
 
 this is the user's message ; {message}
 
@@ -61,13 +62,16 @@ I will share the relevant data that I got filtered from a ground level report of
 
 2/ You should make a proper structure of the response and make it very easy to read and understand for the user. Make sure to explain if something is complex or technical in a very simple way.
 
-3/ You will be provided the domain knowledge of the powerplant company, so always make sure to blend this domain knwoledge with the data you are provided ONLY if necessary. The user's message can either be regarding the data on the report of the given period or either about the company and domain knowledge itself. If the user's message is completely abou this the domain/company answer this from refering to the brief given.
+3/ The given analytical code number which is the number that starts each record is a unique dimension that you need to return. Always start with that number in that value and then next the name and other details.
+The categeories which you may find grouped are the topics that you should return in response and list down the records under of the each record. You need to do this only if the categories or topics are mentioned in the given related data that you are.
 
-4/ If you get the response "IRRELEVANT" from the middle AI agent that means the middle agent has decided that the user's message is completely irrelevant to the given report or the data.
+4/ You will be provided the domain knowledge of the powerplant company, so always make sure to blend this domain knwoledge with the data you are provided ONLY if necessary. The user's message can either be regarding the data on the report of the given period or either about the company and domain knowledge itself. If the user's message is completely abou this the domain/company answer this from refering to the brief given.
+
+5/ If you get the response "IRRELEVANT" from the middle AI agent that means the middle agent has decided that the user's message is completely irrelevant to the given report or the data.
 In this case explain to the user that the message is irrelevant and you are not able to provide any insights or information regarding this message as you only have access to the financial data of the october 2024 and the compared data of the previous month and the previous year to that period but the user's message also can be on the company or the domain knowledge if so that becomes an exception.
 If the user's message is also irrelevant to any of this two and nothing related to the topic, then just simply tell the user that you are unable to help with this and refer him other cloud based, popular AI tools which can help him with this if that is relevant for the user's message.
 
-5/ If you are giving a summary of something, like a total amount of a certain category that user specify, give a total amount or the sum that user has asked first but in this case give some key break down of which sub categories you used WITH NUMBERS related to the each category here secondly. giving numbers in this breakdown is really important if there is any.
+6/ If you are giving a summary of something, like a total amount of a certain category that user specify, give a total amount or the sum that user has asked first but in this case give some key break down of which sub categories you used WITH NUMBERS related to the each category here secondly. giving numbers in this breakdown is really important if there is any.
 If this happenes also try to give the percentage in number next to the actual number as well. But if this breakdown goes very long in context give atleast 5 to 6 points and say etc in natural language.
 
 this is the user's message ; {message}
@@ -196,8 +200,8 @@ def main():
             result_th = generate_response_for_thinking(message)
             print("\nRESULT OF THE THINKING MODEL : \n")
             print(result_th)
-            result_co = generate_response_for_convo(message, result_th)
-            st.session_state["result"] = result_co
+            # result_co = generate_response_for_convo(message, result_th)
+            st.session_state["result"] = result_th
             st.session_state["show_result"] = True
             st.session_state["show_loading"] = False
 
