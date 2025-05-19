@@ -4,15 +4,10 @@ import warnings
 warnings.simplefilter("ignore", DeprecationWarning)
 
 import streamlit as st
-from langchain.document_loaders import JSONLoader
-from langchain.vectorstores import FAISS
-from langchain.embeddings.openai import OpenAIEmbeddings
-from langchain.prompts import PromptTemplate
-from langchain.chat_models import ChatOpenAI
-from langchain.chains import LLMChain
+from openai import OpenAI
 from dotenv import load_dotenv
 import logging
-import csv
+import time
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
     
@@ -21,16 +16,19 @@ for name in logging.Logger.manager.loggerDict.keys():
 
 load_dotenv(override=True)
 
-# 4. Setup LLMChain & prompts
-thinking_model = ChatOpenAI(temperature=1, model="o4-mini-2025-04-16")
-conversational_model = ChatOpenAI(temperature=0, model="gpt-4o-mini-2024-07-18")
+# 1. Setup OpenAI models & prompts
+
+client = OpenAI()
+
+thinking_model = "o4-mini-2025-04-16"
+conversational_model = "gpt-4o-mini-2024-07-18"
 
 template_thinking_model = """
 You are a middle AI agent who works in the middle of a powerplant company and their conversatonal AI who is the end face who will report this insights to the user in natural language.
 I will share the ground level report of the account balances for the month october of the year 2024 of the powerplant company and the user's message. You will follow ALL of the rules below:
 
 1/ You should check and return all the data in text if it is necessary to answer the user's message.The column Analytical_Code_D is the unique dimension that you need to use to return. Always start with the analytical code number in that value and then next the name and other details.
-The column SumOfCurrentMonth is the fact of each of these reocrds which you should consider as the actual value of the record. The budget is the fact that the company estimated and planned for this each record.
+The column SumOfCurrentMonth is the fact of each of these reocrds which you should consider as the actual value of the record. The budget is the fact that the company estimated and planned for this each record. When asked fro assests, liabilities or current, non current values use the column 'account grouping' to filter the records necessary.
 
 2/ You should analyse or do any necessary calculations and return them as well but very precisely menetioning what this exact value means.
 
@@ -46,10 +44,47 @@ The data user asks might not be in the report as the exact given names but thing
 
 7/ Give the results in sub topics (categories) using the Account_Name column when the user's message is asking for a list of things but only for the topic as in you still need to return all the each list of items and requested details in the analytical code and the code name as mentioned in the rule 01 but topic them in categories by sub-topics. Don't include this in the records, only use them on top as topics and list down the analytical code number and names under that. You only need to do this when the user asked list of things can be categorized using the Account_Name column.
 
-this is the user's message ; {message}
-
 this the ground level report of the account balance of the company for october 2024 in csv format.
 ; {gl_report_oct_2024}
+
+You do not have to be emotional or natural language in your response, you should be very precise and technical in your response as you are communicating with another AI.
+"""
+
+prompt_da = """
+You are a middle AI agent who works in the middle of a powerplant company and their conversatonal AI who is the end face who will report this insights to the user in natural language.
+I will share the ground level report of the account balances for the month october of the year 2024 of the powerplant company and the user's message. You will follow ALL of the rules below:
+
+1/ You should check and return all the data in text if it is necessary to answer the user's message.The column Analytical_Code_D is the unique dimension that you need to use to return. Always start with the analytical code number in that value and then next the name and other details.
+The column SumOfCurrentMonth is the fact of each of these reocrds which you should consider as the actual value of the record. When asked fro assests, liabilities or current, non current values use the column 'account grouping' to filter the records necessary.
+
+2/ You should analyse or do any necessary calculations and return them as well but very precisely menetioning what this exact value means.
+
+3/ Do not return guides to do calculations or get certain information as the conversation agent (AI) doesn't have any access to the raw data of reporting. Always do all the necessary calculations and return the results.
+
+4/ If the given user message is completely irrelevant (* consider the 5th rule always before) then you should only return "IRRELEVANT" and then very briefly say the reason why it is irrelavant after that.
+
+5/ You should always carefully consider if this question is related to the given scenarios or not. Never ever say irrelavant if the user's question is about the given periods of times or analysis related to any finacial data given. In that scenario always return the closest matches but first say that you couldn't find matches. Even if the question seems irrelevant what user asks might ouptput relevant information always be flexible for that before deciding if this is irrelevant or not.
+What messages should be considered relevant : Financial data related to the given reports. This includes any financial related question or analysis regarding the month of October 2024.
+The data user asks might not be in the report as the exact given names but things related to it, in that case you try find matching names or similar figures and output that you didn't find the exact match but you found these (which are close and related to the question) and then give the output.
+
+6/ Try to give as much as context as possible without considering the space limitations return the maximum of context you can provide as the conversational AI agent's response will completely depend on the response you give. When providing numbers or calculation results always provide the Ground Level attributes you got from the report as reference so it would be easier for the conversational AI agent to explain it to the user. But always give the final result or the total amount first and then go into details.
+
+7/ Give the results in sub topics (categories) using the Account_Name column when the user's message is asking for a list of things but only for the topic as in you still need to return all the each list of items and requested details in the analytical code and the code name as mentioned in the rule 01 but topic them in categories by sub-topics. Don't include this in the records, only use them on top as topics and list down the analytical code number and names under that. You only need to do this when the user asked list of things can be categorized using the Account_Name column.
+Here is a sample format of the output you should return;
+
+01. accout name 01 (subtopic 01)
+22192/0000 - [analytical code name 01] - 20,000,000.00(sum of current month)
+22193/0000 - [analytical code name 02] - 350,000,000.00(sum of current month)
+22194/0000 - [analytical code name 03] - 45,000,000.00(sum of current month)
+22195/0000 - [analytical code name 04] - 255,000,000.00(sum of current month)
+
+02. accout name 02 (subtopic 02)
+22196/0000 - [analytical code name 05] - 206,000,000.00(sum of current month)
+22197/0000 - [analytical code name 06] - 80,000,000.00(sum of current month)
+22198/0000 - [analytical code name 07] - 99,000,000.00(sum of current month)
+22199/0000 - [analytical code name 08] - 1,000,000.00(sum of current month)
+
+The ground level report of the account balance of the company for october 2024 in csv format is given for you.
 
 You do not have to be emotional or natural language in your response, you should be very precise and technical in your response as you are communicating with another AI.
 """
@@ -74,7 +109,22 @@ If the user's message is also irrelevant to any of this two and nothing related 
 6/ If you are giving a summary of something, like a total amount of a certain category that user specify, give a total amount or the sum that user has asked first but in this case give some key break down of which sub categories you used WITH NUMBERS related to the each category here secondly. giving numbers in this breakdown is really important if there is any.
 If this happenes also try to give the percentage in number next to the actual number as well. But if this breakdown goes very long in context give atleast 5 to 6 points and say etc in natural language.
 
-this is the user's message ; {message}
+7/ Give the results in sub topics (categories) using the Account_Name column when the user's message is asking for a list of things but only for the topic as in you still need to return all the each list of items and requested details in the analytical code and the code name as mentioned in the rule 01 but topic them in categories by sub-topics. Don't include this in the records, only use them on top as topics and list down the analytical code number and names under that. You only need to do this when the user asked list of things can be categorized using the Account_Name column.
+Here is a sample format of the output you should return;
+
+01. accout name 01 (subtopic 01)
+22192/0000 - analytical code name 01 - 20,000,000.00(sum of current month)
+22193/0000 - analytical code name 02 - 350,000,000.00(sum of current month)
+22194/0000 - analytical code name 03 - 45,000,000.00(sum of current month)
+22195/0000 - analytical code name 04 - 255,000,000.00(sum of current month)
+
+02. accout name 02 (subtopic 02)
+22196/0000 - analytical code name 05 - 206,000,000.00(sum of current month)
+22197/0000 - analytical code name 06 - 80,000,000.00(sum of current month)
+22198/0000 - analytical code name 07 - 99,000,000.00(sum of current month)
+22199/0000 - analytical code name 08 - 1,000,000.00(sum of current month)
+
+*notice that the analytical code name is not in square brakcets, when given the relevant data it will only given as that for the ease of identifying, and th subtopic numbers in brakcets are also unncessary in the final result.
 
 Below is the relevant report data the program received after going through the ground level report data. This was generated by a middle thinking AI agent [You should never expose about this thinking model to the user]:
 {relevant_data}
@@ -82,52 +132,111 @@ Below is the relevant report data the program received after going through the g
 Here is the brief of the powerplant company and the domain knowledge of the company. Do not give text straight from this just only understand this an explain as an conversational assistant ; {acwa_company_brief}
 """
 
-prompt_th = PromptTemplate(
-    input_variables=["message", "gl_report_oct_2024"],
-    template=template_thinking_model
-)
+# The fucntion to filloiut the templates with values
 
-# comment below and uncomment the above for recovery to the full report reading
-# prompt_th = PromptTemplate(
-#     input_variables=["message", "gl_25jan_current_assets", "gl_25jan_non_current_assets", "gl_25jan_equity", "gl_25jan_current_liabilities", "gl_25jan_non_current_liabilities"],
-#     template=template_thinking_model
-# )
+def fill_template(template: str, context: dict) -> str:
+    return template.format(**context)
 
-prompt_co = PromptTemplate(
-    input_variables=["message", "relevant_data", "acwa_company_brief"],
-    template=template_conversation_model
-)
+# 2. Generate the model responses
 
-chain_th = LLMChain(llm=thinking_model, prompt=prompt_th)
-chain_co = LLMChain(llm=conversational_model, prompt=prompt_co)
+def generate_data_assistant_response(message):
 
-# 5. Retrieval augmented generation
-def generate_response_for_thinking(message):
-    with open("gl-report-24-october.txt", "r") as file:
-        gl_report_oct_2024 = file.read()
-    response = chain_th.run(message=message, gl_report_oct_2024=gl_report_oct_2024)
+    # Upload a file with an "assistants" purpose
+    file = client.files.create(
+        file = open("gl-report-24-october-org.csv", "rb"),
+        purpose='assistants'
+    )
+
+    # 1️⃣ Create an assistant with the code interpreter tool
+    assistant = client.beta.assistants.create(
+        name="Data Assistant",
+        model="gpt-4o-mini",
+        instructions=prompt_da,
+        tools=[{"type": "code_interpreter"}],
+        tool_resources={
+            "code_interpreter":{
+                "file_ids": [file.id]
+            }
+        }
+    )
+
+    # 2️⃣ Create a new thread for the conversation
+    thread = client.beta.threads.create()
+
+    # 4️⃣ Add user message to the thread
+    client.beta.threads.messages.create(
+        thread_id=thread.id,
+        role="user",
+        content=message
+    )
+
+    # 5️⃣ Create a run to process the conversation with the assistant
+    run = client.beta.threads.runs.create(
+        thread_id=thread.id,
+        assistant_id=assistant.id
+    )
+
+    # 6️⃣ Poll the run until it completes
+    while run.status != "completed":
+        time.sleep(1)
+        run = client.beta.threads.runs.retrieve(thread_id=thread.id, run_id=run.id)
+
+    # 7️⃣ Get all messages from the thread
+    messages = client.beta.threads.messages.list(thread_id=thread.id)
+
+    # Count input tokens
+    if run.usage:
+        total_tokens = run.usage.total_tokens
+        input_tokens = run.usage.prompt_tokens
+        percent_used = (total_tokens / 128000) * 100
+
+    print(f"Input tokens: {input_tokens}")
+    print(f"Total tokens used: {total_tokens} / 128000 ({percent_used:.2f}%)")
+
+    response = "None returned"
+    # 8️⃣ Print the assistant responses
+    for msg in messages.data[::-1]:  # reverse the order
+        if msg.role == "assistant":
+            # Content can be a list of parts; extract text accordingly
+            response = "".join(part.text.value for part in msg.content)
+            print("\nAssistant:", response)
+        if msg.role == "user":
+           # Content can be a list of parts; extract text accordingly
+            text = "".join(part.text.value for part in msg.content)
+            print("\nUser:", text)
+        if msg.role == "system":
+            # Content can be a list of parts; extract text accordingly
+            print("\nSystem: system instructions")
     return response
 
-# comment below and uncomment the above for recovery to the full report reading
-# def generate_response_for_thinking(message):
-#     with open("gl-report-25-jan-breakdown/totalassets-currentassets.txt", "r") as file:
-#         gl_25jan_current_assets = file.read()
-#     with open("gl-report-25-jan-breakdown/totalassets-noncurrentassets.txt", "r") as file:
-#         gl_25jan_non_current_assets = file.read()
-#     with open("gl-report-25-jan-breakdown/totaleuqity.txt", "r") as file:
-#         gl_25jan_equity = file.read()
-#     with open("gl-report-25-jan-breakdown/totalliabilities-currentliabilities.txt", "r") as file:
-#         gl_25jan_current_liabilities = file.read()
-#     with open("gl-report-25-jan-breakdown/totalliabilities-noncurrentliabilities.txt", "r") as file:
-#         gl_25jan_non_current_liabilities = file.read()
-#     response = chain_th.run(message=message, gl_25jan_current_assets=gl_25jan_current_assets, gl_25jan_non_current_assets=gl_25jan_non_current_assets, gl_25jan_equity=gl_25jan_equity, gl_25jan_current_liabilities=gl_25jan_current_liabilities, gl_25jan_non_current_liabilities=gl_25jan_non_current_liabilities)
-#     return response
+
+def generate_response_for_thinking(message):
+    with open("gl-report-24-october.txt", "r") as file:
+            gl_report_oct_2024 = file.read()
+    prompt_th = fill_template(template_thinking_model, {"gl_report_oct_2024": gl_report_oct_2024})
+    response = client.chat.completions.create(
+        model=thinking_model,
+        messages=[
+            {"role": "system", "content": prompt_th},
+            {"role": "user", "content": message}
+                ],
+        tools=[{"type": "code_interpreter"}]
+        )
+    return response.choices[0].message.content
 
 def generate_response_for_convo(message, relevant_data):
     with open("acwa_company_brief.txt", "r") as file:
         acwa_company_brief = file.read()
-    response = chain_co.run(message=message, relevant_data=relevant_data, acwa_company_brief=acwa_company_brief)
-    return response
+    prompt_co = fill_template(template_conversation_model, {"relevant_data": relevant_data, "acwa_company_brief": acwa_company_brief})
+    responseStream = client.chat.completions.create(
+        model=conversational_model,
+        messages=[
+            {"role": "system", "content": prompt_co},
+            {"role": "user", "content": message}
+                ],
+        stream=True
+        )
+    return responseStream
 
 def on_submit():
     st.session_state["show_loading"] = True
@@ -146,9 +255,12 @@ def return_example(idx):
 
 # 6. Streamlit App
 def main():
-
     if "question_count" not in st.session_state:
         st.session_state["question_count"] = 0
+    if "show_loading" not in st.session_state:
+        st.session_state["show_loading"] = False
+    if "show_result" not in st.session_state:
+        st.session_state["show_result"] = False
 
     st.set_page_config(
         page_title="ACWA Conversational Assistant :satellite::milky_way:", page_icon=":milky_way:")
@@ -197,21 +309,22 @@ def main():
             st.session_state["question_count"] += 1
             print(f"\nQEUSTION ID : Q{st.session_state['question_count']}")
             print("QUESTION :", message)
-            result_th = generate_response_for_thinking(message)
-            print("\nRESULT OF THE THINKING MODEL : \n")
-            print(result_th)
-            # result_co = generate_response_for_convo(message, result_th)
-            st.session_state["result"] = result_th
+            # result_th = generate_response_for_thinking(message)
+            print("\nTHINKING... :")
+            result_da = generate_data_assistant_response(message)
+            result_co_stream = generate_response_for_convo(message, result_da)
+            result_co = ""
+            placeholder = st.empty()
+
+            for chunk in result_co_stream:
+                if chunk.choices[0].delta.content:
+                    result_co += chunk.choices[0].delta.content
+                    # print(result_co, end="", flush=True)
+                    # Styled output inside the placeholder
+                    placeholder.markdown(result_co)
+
             st.session_state["show_result"] = True
             st.session_state["show_loading"] = False
-
-    # Display result if available
-    if "show_result" not in st.session_state or "show_loading" not in st.session_state:
-        st.session_state["show_loading"] = False
-        st.session_state["show_result"] = False
-
-    if st.session_state["show_result"]:
-        st.info(st.session_state["result"])
 
 if __name__ == '__main__':
     main()
