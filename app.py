@@ -8,6 +8,8 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import logging
 import time
+import pandas as pd
+from io import StringIO
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
     
@@ -21,6 +23,7 @@ load_dotenv(override=True)
 client = OpenAI()
 
 thinking_model = "o4-mini-2025-04-16"
+# conversational_model = "o4-mini-2025-04-16"
 conversational_model = "gpt-4o-mini-2024-07-18"
 
 template_thinking_model = """
@@ -55,21 +58,27 @@ You are a middle AI agent who works in the middle of a powerplant company and th
 I will share the ground level report of the account balances for the month october of the year 2024 in comparison with september 2024 of the powerplant company and the user's message. You will follow ALL of the rules below:
 
 1/ You should check and return all the data in text if it is necessary to answer the user's message.The column Analytical_Code_D is the unique dimension that you need to use to return. Always start with the analytical code number in that value and then next the name and other details.
-The column SumOfCurrentMonth is the fact of each of these reocrds which you should consider as the actual value of the record. When asked for assests, liabilities or current, non current values use the column 'account grouping' to filter the records necessary.SumOfPreviousMonth is the fact of the previous month which is september 2024. Since you have the data of the previous month you may also answer user's questions regarding the september 2024 period as well.
+The column SumOfCurrentMonth is the fact of each of these reocrds which you should consider as the actual value of the record. SumOfPreviousMonth is the fact of the previous month which is september 2024. Since you have the data of the previous month you may also answer user's questions regarding the september 2024 period as well.
+when filtering out related data consider the following two types and act accordingly;
 
-2/ You should analyse or do any necessary calculations and return them as well but very precisely menetioning what this exact value means.
+Type I - When asked for assests, liabilities or current, non current values use the column 'account grouping' to filter the records necessary.
+Type II - When asked for other specific things like staff costs, interests, long term loans, etc. use the column 'FS_Category' to filter the records necessary.
 
-3/ Do not return guides to do calculations or get certain information as the conversation agent (AI) doesn't have any access to the raw data of reporting. Always do all the necessary calculations and return the results.
+2/ ALWAYS Generate and return a new seperate csv file in the name of "relevant_records" for each of these questions seperate to the response you return. When generating this csv carefully consider what the user requires from his question and include as much as columns to support this question. You do not need to mention about this in the response.
 
-4/ If the given user message is completely irrelevant (* consider the 5th rule always before) then you should only return "IRRELEVANT" and then very briefly say the reason why it is irrelavant after that.
+3/ You should analyse or do any necessary calculations and return them as well but very precisely menetioning what this exact value means.
 
-5/ You should always carefully consider if this question is related to the given scenarios or not. Never ever say irrelavant if the user's question is about the given periods of times or analysis related to any finacial data given. In that scenario always return the closest matches but first say that you couldn't find matches. Even if the question seems irrelevant what user asks might ouptput relevant information always be flexible for that before deciding if this is irrelevant or not.
+4/ Do not return guides to do calculations or get certain information as the conversation agent (AI) doesn't have any access to the raw data of reporting. Always do all the necessary calculations and return the results.
+
+5/ If the given user message is completely irrelevant (* consider the 5th rule always before) then you should only return "IRRELEVANT" and then very briefly say the reason why it is irrelavant after that.
+
+6/ You should always carefully consider if this question is related to the given scenarios or not. Never ever say irrelavant if the user's question is about the given periods of times or analysis related to any finacial data given. In that scenario always return the closest matches but first say that you couldn't find matches. Even if the question seems irrelevant what user asks might ouptput relevant information always be flexible for that before deciding if this is irrelevant or not.
 What messages should be considered relevant : Financial data related to the given reports. This includes any financial related question or analysis regarding the month of October 2024 and September 2024 (which represents the sumOfthePrevious Month column).
 The data user asks might not be in the report as the exact given names but things related to it, in that case you try find matching names or similar figures and output that you didn't find the exact match but you found these (which are close and related to the question) and then give the output.
 
-6/ Try to give as much as context as possible without considering the space limitations return the maximum of context you can provide as the conversational AI agent's response will completely depend on the response you give. When providing numbers or calculation results always provide the Ground Level attributes you got from the report as reference so it would be easier for the conversational AI agent to explain it to the user. But always give the final result or the total amount first and then go into details.
+7/ Try to give as much as context as possible without considering the space limitations return the maximum of context you can provide as the conversational AI agent's response will completely depend on the response you give. When providing numbers or calculation results always provide the Ground Level attributes you got from the report as reference so it would be easier for the conversational AI agent to explain it to the user. But always give the final result or the total amount first and then go into details.
 
-7/ Give the results in sub topics (categories) using the Account_Name column when the user's message is asking for a list of things but only for the topic as in you still need to return all the each list of items and requested details in the analytical code and the code name as mentioned in the rule 01 but topic them in categories by sub-topics. Don't include this in the records, only use them on top as topics and list down the analytical code number and names under that. You only need to do this when the user asked list of things can be categorized using the Account_Name column.
+8/ Give the results in sub topics (categories) using the Account_Name column when the user's message is asking for a list of things but only for the topic as in you still need to return all the each list of items and requested details in the analytical code and the code name as mentioned in the rule 01 but topic them in categories by sub-topics. Don't include this in the records, only use them on top as topics and list down the analytical code number and names under that. You only need to do this when the user asked list of things can be categorized using the Account_Name column.
 There is no need to mention about the previous month figure unless the user asks for it. Always mention the budget variance percentage in square brakcets as shown in the sample response below.
 Here is a sample format of the output you should return;
 
@@ -111,7 +120,7 @@ If the user's message is also irrelevant to any of this two and nothing related 
 If this happenes also try to give the percentage in number next to the actual number as well. But if this breakdown goes very long in context give atleast 5 to 6 points and say etc in natural language.
 
 7/ Give the results in sub topics (categories) using the Account_Name column when the user's message is asking for a list of things but only for the topic as in you still need to return all the each list of items and requested details in the analytical code and the code name as mentioned in the rule 01 but topic them in categories by sub-topics. Don't include this in the records, only use them on top as topics and list down the analytical code number and names under that. You only need to do this when the user asked list of things can be categorized using the Account_Name column.
-Here is a sample format of the output you should return as;
+Here is a sample format of the output you should return as you can get all of this details form the given related data below;
 
 01. accout name 01 (subtopic 01)
 22192/0000 - analytical code name 01 - 20,000,000.00(sum of current month) - budget 80.00 %
@@ -127,8 +136,8 @@ Here is a sample format of the output you should return as;
 
 *notice that the analytical code name and budget variance percentage is not in square brakcets you should not return them in square brakcets just give it in the sample format only unless the user asks for a different format, when given the relevant data it has only given as that for the ease of identifying, and th subtopic numbers in brakcets are also unncessary in the final result.
 
-Below is the relevant report data the program received after going through the ground level report data. This was generated by a middle thinking AI agent [You should never expose about this thinking model to the user]:
-{relevant_data}
+This was the response given by the middle AI agent to going through the ground level data of the company. You should use the totals and calculations provided in this reponse for the final reponse. This also includes relevant data from the ground level report. This was generated by a middle thinking AI agent [You should never expose about this thinking model to the user]:
+{middle_agent_response}
 
 Here is the brief of the powerplant company and the domain knowledge of the company. Do not give text straight from this just only understand this an explain as an conversational assistant ; {acwa_company_brief}
 """
@@ -195,6 +204,10 @@ def generate_data_assistant_response(message):
     print(f"Total tokens used: {total_tokens} / 128000 ({percent_used:.2f}%)")
 
     response = "None returned"
+    output_file_id = None
+
+    print(messages.data)
+
     # 8️⃣ Print the assistant responses
     for msg in messages.data[::-1]:  # reverse the order
         if msg.role == "assistant":
@@ -208,7 +221,10 @@ def generate_data_assistant_response(message):
         if msg.role == "system":
             # Content can be a list of parts; extract text accordingly
             print("\nSystem: system instructions")
-    return response
+        for attachment in msg.attachments:
+            output_file_id = attachment.file_id
+    
+    return response, output_file_id
 
 
 def generate_response_for_thinking(message):
@@ -225,10 +241,11 @@ def generate_response_for_thinking(message):
         )
     return response.choices[0].message.content
 
-def generate_response_for_convo(message, relevant_data):
+def generate_response_for_convo(message, middle_agent_response):
     with open("acwa_company_brief.txt", "r") as file:
         acwa_company_brief = file.read()
-    prompt_co = fill_template(template_conversation_model, {"relevant_data": relevant_data, "acwa_company_brief": acwa_company_brief})
+    prompt_co = fill_template(template_conversation_model, {"middle_agent_response":middle_agent_response, "acwa_company_brief": acwa_company_brief})
+    # print(prompt_co)
     responseStream = client.chat.completions.create(
         model=conversational_model,
         messages=[
@@ -253,6 +270,16 @@ def return_example(idx):
     }
     st.session_state["message"] = examples.get(idx, "")
     st.session_state["show_result"] = False
+
+def display_table(csv_string: str):
+    try:
+        csv_io = StringIO(csv_string)
+        df = pd.read_csv(csv_io)
+        return df
+    except Exception as e:
+        st.error(f"Error reading CSV: {e}")
+        print(f"Error reading CSV: {e}")
+        return None
 
 # 6. Streamlit App
 def main():
@@ -312,17 +339,34 @@ def main():
             print("QUESTION :", message)
             # result_th = generate_response_for_thinking(message)
             print("\nTHINKING... :")
-            result_da = generate_data_assistant_response(message)
-            result_co_stream = generate_response_for_convo(message, result_da)
+            
+            result_da, output_file_id = generate_data_assistant_response(message)
+            output_file_string = ""
+
             result_co = ""
-            placeholder = st.empty()
+            expand_data_placeholder = st.empty()
+            response_placeholder = st.empty()
+            if output_file_id:
+                output_file = client.files.content(output_file_id)
+                output_file_bytes = output_file.read()
+                output_file_string = output_file_bytes.decode('utf-8')
+                output_table = display_table(output_file_string)
+                if output_table is not None:
+                    expand_data_placeholder.expander("See related records").write(output_table)
+                else:
+                    print("nothing returned displaying table")
+                # with open("./generated-samples/related-data.csv", "wb") as file:
+                #     file.write(output_file_bytes)
+                # print("Output file downloaded as output.csv")
+
+            result_co_stream = generate_response_for_convo(message, result_da)
 
             for chunk in result_co_stream:
                 if chunk.choices[0].delta.content:
                     result_co += chunk.choices[0].delta.content
                     # print(result_co, end="", flush=True)
                     # Styled output inside the placeholder
-                    placeholder.markdown(result_co)
+                    response_placeholder.markdown(result_co)
 
             st.session_state["show_result"] = True
             st.session_state["show_loading"] = False
